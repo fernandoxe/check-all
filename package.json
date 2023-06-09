@@ -4,9 +4,9 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "build": "rm -rf build && tsc",
+    "build": "rm -rf dist && tsc",
     "dev": "PLAYWRIGHT_BROWSERS_PATH=chromium nodemon --ext ts src/index.ts",
-    "start": "PLAYWRIGHT_BROWSERS_PATH=chromium node build/index.js",
+    "start": "PLAYWRIGHT_BROWSERS_PATH=chromium node dist/index.js",
     "i-chromium": "PLAYWRIGHT_BROWSERS_PATH=chromium npx playwright install --with-deps chromium",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
