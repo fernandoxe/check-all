@@ -1,10 +1,32 @@
 import express, { Request, Response } from 'express';
+import * as Sentry from '@sentry/node';
 import { chromium } from 'playwright';
 import fs from 'fs';
-import { PAGE, ELEMENT_SELECTOR, API_KEY, messages, URL_REGEX, DETAILS_CHAT_ID, IDS_PATH, IDS_FILENAME } from './config';
+import { ELEMENT_SELECTOR, API_KEY, messages, URL_REGEX, DETAILS_CHAT_ID, IDS_PATH, IDS_FILENAME, SENTRY_DSN, urls } from './config';
 import TelegramBot from 'node-telegram-bot-api';
 
 const app = express();
+
+Sentry.init({
+  dsn: SENTRY_DSN,
+  integrations: [
+    // enable HTTP calls tracing
+    new Sentry.Integrations.Http({ tracing: true }),
+    // enable Express.js middleware tracing
+    new Sentry.Integrations.Express({ app }),
+    // Automatically instrument Node.js libraries and frameworks
+    ...Sentry.autoDiscoverNodePerformanceMonitoringIntegrations(),
+  ],
+
+  // Set tracesSampleRate to 1.0 to capture 100%
+  // of transactions for performance monitoring.
+  // We recommend adjusting this value in production
+  tracesSampleRate: 1.0,
+});
+
+app.use(Sentry.Handlers.requestHandler());
+
+app.use(Sentry.Handlers.tracingHandler());
 
 const bot = new TelegramBot(API_KEY, {polling: true});
 
@@ -12,22 +34,28 @@ const PORT = process.env.PORT || 5000;
 
 app.use('/files', express.static('files'));
 
-app.get('/api/check', async (req: Request, res: Response) => {
+app.get('/api/check/:id?', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const url = urls[Number(id)] || urls[0];
   try {
-    checkForAll(PAGE);
+    checkForAll(url);
     res.send({message: 'checked'});
   } catch (error: any) {
+    Sentry.captureException(error);
     res.status(500).send({error: error.message});
   }
 });
 
-app.get('/api/notify', async (req: Request, res: Response) => {
+app.get('/api/notify/:id?', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const url = urls[Number(id)] || urls[0];
   try {
-    check([DETAILS_CHAT_ID], PAGE);
+    check([DETAILS_CHAT_ID], url);
     res.send({message: 'notified'});
   } catch (error: any) {
-    res.status(500).send({error: error.message});
+    Sentry.captureException(error);
     bot.sendMessage(DETAILS_CHAT_ID, error.message);
+    res.status(500).send({error: error.message});
   }
 });
 
@@ -36,9 +64,12 @@ app.get('/api/issubscribed', async (req: Request, res: Response) => {
     isSubscribedAll();
     res.send({message: 'issubscribed'});
   } catch (error: any) {
+    Sentry.captureException(error);
     res.status(500).send({error: error.message});
   }
 });
+
+app.use(Sentry.Handlers.errorHandler());
 
 app.listen(PORT, () => {
   console.log(`Server is listening on port ${PORT}`);
@@ -60,7 +91,7 @@ const checkPage = async (url: string) => {
 
   await page.screenshot({ path: 'files/screenshot.jpg', fullPage: true });
   const htmlConfirmCode = await page.content();
-  await saveFile(htmlConfirmCode, 'files', 'index2.html');
+  await saveFile(htmlConfirmCode, 'files', 'index.html');
 
   const elementExists = await page.locator(ELEMENT_SELECTOR).count() > 0;
 
@@ -89,6 +120,7 @@ bot.onText(/\/subscribe/, async (msg) => {
       bot.sendMessage(chatId, messages.subscribed);
     }
   } catch (error) {
+    Sentry.captureException(error);
     bot.sendMessage(chatId, messages.retrySubscribe);
   }
 });
@@ -104,6 +136,7 @@ bot.onText(/\/unsubscribe/, async (msg) => {
       bot.sendMessage(chatId, messages.unsubscribed);
     }
   } catch (error) {
+    Sentry.captureException(error);
     bot.sendMessage(chatId, messages.retryUnsubscribe);
   }
 });
@@ -111,9 +144,10 @@ bot.onText(/\/unsubscribe/, async (msg) => {
 bot.onText(/\/details/, async (msg) => {
   const chatId = msg.chat.id;
   try {
-    const check = await checkPage(PAGE);
+    const check = await checkPage(urls[0]);
     sendDetails(chatId, check.elementExists, check.redirected);
   } catch (error: any) {
+    Sentry.captureException(error);
     bot.sendMessage(chatId, error.message);
   }
 });
@@ -123,28 +157,28 @@ const isSubscribedAll = async () => {
     const ids = await getIds();
     sendTo(ids, messages.isSubscribed);
   } catch (error) {
-
+    Sentry.captureException(error);
   }
 };
 
-const checkForAll = async (page: string) => {
+const checkForAll = async (url: string) => {
   try {
     const ids = await getIds();
-    check(ids, page);
+    check(ids, url);
   } catch (error) {
-
+    Sentry.captureException(error);
   }
 };
 
-const check = async (ids: number[], page: string) => {
+const check = async (ids: number[], url: string) => {
   try {
-    const check = await checkPage(page);
+    const check = await checkPage(url);
     if(check.elementExists || check.redirected) {
-      sendTo(ids, messages.notification);
+      sendTo(ids, `${messages.notification}${url}`);
       sendDetails(DETAILS_CHAT_ID, check.elementExists, check.redirected);
     }
   } catch (error) {
-    
+    Sentry.captureException(error);
   }
 };
 
@@ -158,6 +192,7 @@ ${messages.redirected} ${redirected}
       `
    );
   } catch (error: any) {
+    Sentry.captureException(error);
     bot.sendMessage(chatId, error.message)
   }
 };
