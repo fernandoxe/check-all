@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import * as Sentry from '@sentry/node';
 import { chromium } from 'playwright';
 import fs from 'fs';
-import { ELEMENT_SELECTOR, API_KEY, messages, URL_REGEX, DETAILS_CHAT_ID, IDS_PATH, IDS_FILENAME, SENTRY_DSN, urls } from './config';
+import { ELEMENT_SELECTOR, API_KEY, messages, URL_REGEX, DETAILS_CHAT_ID, IDS_PATH, IDS_FILENAME, SENTRY_DSN, urls, BROWSER_OPTIONS } from './config';
 import TelegramBot from 'node-telegram-bot-api';
 
 const app = express();
@@ -38,7 +38,7 @@ app.get('/api/check/:id?', async (req: Request, res: Response) => {
   const { id } = req.params;
   const url = urls[Number(id)] || urls[0];
   try {
-    checkForAll(url);
+    check(url);
     res.send({message: 'checked'});
   } catch (error: any) {
     Sentry.captureException(error);
@@ -46,12 +46,12 @@ app.get('/api/check/:id?', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/notify/:id?', async (req: Request, res: Response) => {
+app.get('/api/details/:id?', async (req: Request, res: Response) => {
   const { id } = req.params;
   const url = urls[Number(id)] || urls[0];
   try {
-    check([DETAILS_CHAT_ID], url);
-    res.send({message: 'notified'});
+    checkForDetails(url);
+    res.send({message: 'details'});
   } catch (error: any) {
     Sentry.captureException(error);
     bot.sendMessage(DETAILS_CHAT_ID, error.message);
@@ -77,7 +77,7 @@ app.listen(PORT, () => {
 
 const checkPage = async (url: string) => {
   let redirected = false;
-  const browser = await chromium.launch({ headless: false});
+  const browser = await chromium.launch(BROWSER_OPTIONS);
   const page = await browser.newPage();
   await page.goto(url, {waitUntil: 'domcontentloaded'});
 
@@ -89,7 +89,7 @@ const checkPage = async (url: string) => {
     // asume that the page is not redirecting
   }
 
-  await page.screenshot({ path: 'files/screenshot.jpg', fullPage: true });
+  await page.screenshot({ path: 'files/screenshot.jpg', fullPage: true, quality: 60 });
   const htmlConfirmCode = await page.content();
   await saveFile(htmlConfirmCode, 'files', 'index.html');
 
@@ -144,8 +144,7 @@ bot.onText(/\/unsubscribe/, async (msg) => {
 bot.onText(/\/details/, async (msg) => {
   const chatId = msg.chat.id;
   try {
-    const check = await checkPage(urls[0]);
-    sendDetails(chatId, check.elementExists, check.redirected);
+    checkForDetails(urls[0]);
   } catch (error: any) {
     Sentry.captureException(error);
     bot.sendMessage(chatId, error.message);
@@ -161,21 +160,21 @@ const isSubscribedAll = async () => {
   }
 };
 
-const checkForAll = async (url: string) => {
+const checkForDetails = async (url: string) => {
   try {
-    const ids = await getIds();
-    check(ids, url);
+    const check = await checkPage(url);
+    sendDetails(DETAILS_CHAT_ID, check.elementExists, check.redirected);
   } catch (error) {
     Sentry.captureException(error);
   }
 };
 
-const check = async (ids: number[], url: string) => {
+const check = async (url: string) => {
   try {
     const check = await checkPage(url);
     if(check.elementExists || check.redirected) {
+      const ids = await getIds();
       sendTo(ids, `${messages.notification}${url}`);
-      sendDetails(DETAILS_CHAT_ID, check.elementExists, check.redirected);
     }
   } catch (error) {
     Sentry.captureException(error);
