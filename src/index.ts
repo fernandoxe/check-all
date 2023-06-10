@@ -1,14 +1,18 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import express, { Request, Response } from 'express';
 import * as Sentry from '@sentry/node';
 import { chromium } from 'playwright';
 import fs from 'fs';
-import { ELEMENT_SELECTOR, API_KEY, messages, URL_REGEX, DETAILS_CHAT_ID, IDS_PATH, IDS_FILENAME, SENTRY_DSN, urls, BROWSER_OPTIONS } from './config';
+import { ELEMENT_SELECTOR, messages, URL_REGEX, DETAILS_CHAT_ID, IDS_PATH, IDS_FILENAME, urls, BROWSER_OPTIONS } from './config';
 import TelegramBot from 'node-telegram-bot-api';
 
 const app = express();
 
+const API_KEY = process.env.API_KEY || '';
+
 Sentry.init({
-  dsn: SENTRY_DSN,
+  dsn: process.env.SENTRY_DSN,
   integrations: [
     // enable HTTP calls tracing
     new Sentry.Integrations.Http({ tracing: true }),
@@ -86,7 +90,7 @@ const checkPage = async (url: string) => {
   await page.goto(url, {waitUntil: 'domcontentloaded'});
 
   try {
-    await page.waitForURL(URL_REGEX, {waitUntil: 'domcontentloaded', timeout: 5000});
+    await page.waitForURL(URL_REGEX, {waitUntil: 'domcontentloaded', timeout: 7000});
     redirected = true;
   } catch (error: any) {
     // the page was not redirected in the timeout or another error ocurred

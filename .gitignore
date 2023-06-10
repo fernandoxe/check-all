@@ -4,3 +4,4 @@ src/config
 src/data
 chromium
 files
+.env
