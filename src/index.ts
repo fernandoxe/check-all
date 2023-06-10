@@ -97,11 +97,11 @@ const checkPage = async (url: string) => {
     // asume that the page is not redirecting
   }
 
-  await page.screenshot({ path: 'files/screenshot.jpg', fullPage: true, quality: 60 });
+  const elementExists = await page.locator(ELEMENT_SELECTOR).count() > 0;
+  
+  await page.screenshot({ path: 'files/screenshot.jpg', fullPage: true, quality: 40, type: 'jpeg' });
   const htmlConfirmCode = await page.content();
   await saveFile(htmlConfirmCode, 'files', 'index.html');
-
-  const elementExists = await page.locator(ELEMENT_SELECTOR).count() > 0;
 
   await page.close();
   await browser.close();
