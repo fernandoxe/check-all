@@ -157,8 +157,9 @@ const checkForDetails = async (url: string) => {
     const check = await checkPage(url);
     let detailMessage = getDetailsMessage(check.elementExists, check.redirected);
     if(check.elementExists || check.redirected) {
-      detailMessage += `\n${messages.notification}${url}`;
+      detailMessage += `\n\n${messages.notification}`;
     }
+    detailMessage += `\n\n${url}`;
     sendToDetails(detailMessage);
   } catch (error: any) {
     Sentry.captureException(error);
@@ -171,7 +172,7 @@ const check = async (url: string) => {
     const check = await checkPage(url);
     if(check.elementExists || check.redirected) {
       const ids = await getIds();
-      sendTo(ids, `${messages.notification}${url}`);
+      sendTo(ids, `${messages.notification}\n\n${url}`);
     }
   } catch (error) {
     Sentry.captureException(error);
@@ -179,10 +180,7 @@ const check = async (url: string) => {
 };
 
 const getDetailsMessage = (elementExists: boolean, redirected: boolean) => {
-  return `
-${messages.elementExists} ${elementExists}
-${messages.redirected} ${redirected}
-  `;
+  return `${messages.elementExists}${elementExists}\n${messages.redirected}${redirected}`;
 };
 
 const sendTo = async (ids: number[], message: string) => {
