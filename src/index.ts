@@ -41,36 +41,20 @@ app.use('/files', express.static('files'));
 app.get('/api/check/:id?', async (req: Request, res: Response) => {
   const { id } = req.params;
   const url = urls[Number(id)] || urls[0];
-  try {
-    check(url);
-    res.send({message: 'checked'});
-  } catch (error: any) {
-    Sentry.captureException(error);
-    res.status(500).send({error: error.message});
-  }
+  check(url);
+  res.json({message: 'checked'});
 });
 
 app.get('/api/details/:id?', async (req: Request, res: Response) => {
   const { id } = req.params;
   const url = urls[Number(id)] || urls[0];
-  try {
-    checkForDetails(url);
-    res.send({message: 'details'});
-  } catch (error: any) {
-    Sentry.captureException(error);
-    bot.sendMessage(DETAILS_CHAT_ID, error.message);
-    res.status(500).send({error: error.message});
-  }
+  checkForDetails(url);
+  res.json({message: 'details'});
 });
 
 app.get('/api/issubscribed', async (req: Request, res: Response) => {
-  try {
-    isSubscribedAll();
-    res.send({message: 'issubscribed'});
-  } catch (error: any) {
-    Sentry.captureException(error);
-    res.status(500).send({error: error.message});
-  }
+  isSubscribedAll();
+  res.json({message: 'issubscribed'});
 });
 
 app.get('*', (req: Request, res: Response) => {
@@ -99,7 +83,7 @@ const checkPage = async (url: string) => {
 
   const elementExists = await page.locator(ELEMENT_SELECTOR).count() > 0;
   
-  await page.screenshot({ path: 'files/screenshot.jpg', fullPage: true, quality: 40, type: 'jpeg' });
+  await page.screenshot({ path: 'files/screenshot.jpg', fullPage: true, quality: 60, type: 'jpeg' });
   const htmlConfirmCode = await page.content();
   await saveFile(htmlConfirmCode, 'files', 'index.html');
 
@@ -126,10 +110,10 @@ bot.onText(/\/subscribe/, async (msg) => {
     } else {
       await addId(chatId, ids);
       bot.sendMessage(chatId, messages.subscribed);
+      sendToDetails(`${messages.subscribed}: ${msg.chat.first_name} ${msg.chat.last_name}`);
     }
   } catch (error) {
     Sentry.captureException(error);
-    bot.sendMessage(chatId, messages.retrySubscribe);
   }
 });
 
@@ -142,17 +126,17 @@ bot.onText(/\/unsubscribe/, async (msg) => {
     } else {
       await removeId(chatId, ids);
       bot.sendMessage(chatId, messages.unsubscribed);
+      sendToDetails(`${messages.unsubscribed}: ${msg.chat.first_name} ${msg.chat.last_name}`);
     }
   } catch (error) {
     Sentry.captureException(error);
-    bot.sendMessage(chatId, messages.retryUnsubscribe);
   }
 });
 
-bot.onText(/\/details/, async (msg) => {
+bot.onText(/\/screenshot/, async (msg) => {
   const chatId = msg.chat.id;
   try {
-    checkForDetails(urls[0]);
+    bot.sendPhoto(chatId, 'files/screenshot.jpg');
   } catch (error: any) {
     Sentry.captureException(error);
     bot.sendMessage(chatId, error.message);
@@ -171,9 +155,11 @@ const isSubscribedAll = async () => {
 const checkForDetails = async (url: string) => {
   try {
     const check = await checkPage(url);
-    sendDetails(DETAILS_CHAT_ID, check.elementExists, check.redirected);
-  } catch (error) {
+    const detailMessage = getDetailsMessage(check.elementExists, check.redirected);
+    sendToDetails(detailMessage);
+  } catch (error: any) {
     Sentry.captureException(error);
+    sendToDetails(error.message);
   }
 };
 
@@ -189,19 +175,11 @@ const check = async (url: string) => {
   }
 };
 
-const sendDetails = async (chatId: number, elementExists: boolean, redirected: boolean) => {
-  try {
-    bot.sendMessage(
-      chatId,
-      `
+const getDetailsMessage = (elementExists: boolean, redirected: boolean) => {
+  return `
 ${messages.elementExists} ${elementExists}
 ${messages.redirected} ${redirected}
-      `
-   );
-  } catch (error: any) {
-    Sentry.captureException(error);
-    bot.sendMessage(chatId, error.message)
-  }
+  `;
 };
 
 const sendTo = async (ids: number[], message: string) => {
@@ -209,6 +187,10 @@ const sendTo = async (ids: number[], message: string) => {
     const id = ids[i];
     bot.sendMessage(id, message);
   }
+};
+
+const sendToDetails = async (message: string) => {
+  bot.sendMessage(DETAILS_CHAT_ID, message);
 };
 
 const getIds = async () => {
