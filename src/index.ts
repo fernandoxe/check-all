@@ -155,7 +155,10 @@ const isSubscribedAll = async () => {
 const checkForDetails = async (url: string) => {
   try {
     const check = await checkPage(url);
-    const detailMessage = getDetailsMessage(check.elementExists, check.redirected);
+    let detailMessage = getDetailsMessage(check.elementExists, check.redirected);
+    if(check.elementExists || check.redirected) {
+      detailMessage += `\n${messages.notification}${url}`;
+    }
     sendToDetails(detailMessage);
   } catch (error: any) {
     Sentry.captureException(error);
