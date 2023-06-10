@@ -110,7 +110,7 @@ bot.onText(/\/subscribe/, async (msg) => {
     } else {
       await addId(chatId, ids);
       bot.sendMessage(chatId, messages.subscribed);
-      sendToDetails(`${messages.subscribed}: ${msg.chat.first_name} ${msg.chat.last_name}`);
+      sendToDetails(`${messages.subscribed}: ${msg.chat.first_name} ${msg.chat.last_name || ''}`);
     }
   } catch (error) {
     Sentry.captureException(error);
@@ -126,7 +126,7 @@ bot.onText(/\/unsubscribe/, async (msg) => {
     } else {
       await removeId(chatId, ids);
       bot.sendMessage(chatId, messages.unsubscribed);
-      sendToDetails(`${messages.unsubscribed}: ${msg.chat.first_name} ${msg.chat.last_name}`);
+      sendToDetails(`${messages.unsubscribed}: ${msg.chat.first_name} ${msg.chat.last_name || ''}`);
     }
   } catch (error) {
     Sentry.captureException(error);
