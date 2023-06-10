@@ -69,6 +69,10 @@ app.get('/api/issubscribed', async (req: Request, res: Response) => {
   }
 });
 
+app.get('*', (req: Request, res: Response) => {
+  res.status(404).json({message: 'Not found'});
+});
+
 app.use(Sentry.Handlers.errorHandler());
 
 app.listen(PORT, () => {
