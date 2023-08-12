@@ -4,7 +4,7 @@ import express, { Request, Response } from 'express';
 import * as Sentry from '@sentry/node';
 import { chromium } from 'playwright';
 import fs from 'fs';
-import { ELEMENT_SELECTOR, messages, URL_REGEX, DETAILS_CHAT_ID, IDS_PATH, IDS_FILENAME, urls, BROWSER_OPTIONS } from './config';
+import { messages, URL_REGEX, DETAILS_CHAT_ID, IDS_PATH, IDS_FILENAME, urls, BROWSER_OPTIONS, ELEMENT_SELECTOR_1, ELEMENT_SELECTOR_2 } from './config';
 import TelegramBot from 'node-telegram-bot-api';
 
 const app = express();
@@ -69,6 +69,7 @@ app.listen(PORT, () => {
 
 const checkPage = async (url: string) => {
   let redirected = false;
+  let redirectedUrl = '';
   const browser = await chromium.launch(BROWSER_OPTIONS);
   const page = await browser.newPage();
   await page.goto(url, {waitUntil: 'domcontentloaded'});
@@ -76,23 +77,31 @@ const checkPage = async (url: string) => {
   try {
     await page.waitForURL(URL_REGEX, {waitUntil: 'domcontentloaded', timeout: 7000});
     redirected = true;
+    redirectedUrl = page.url();
   } catch (error: any) {
+    // console.log('error', error);
     // the page was not redirected in the timeout or another error ocurred
     // asume that the page is not redirecting
   }
 
-  const elementExists = await page.locator(ELEMENT_SELECTOR).count() > 0;
+  const elementExists1 = await page.locator(ELEMENT_SELECTOR_1).count() > 0;
+  const elementExists2 = await page.locator(ELEMENT_SELECTOR_2).count() > 0;
   
   await page.screenshot({ path: 'files/screenshot.jpg', fullPage: true, quality: 60, type: 'jpeg' });
-  const htmlConfirmCode = await page.content();
-  await saveFile(htmlConfirmCode, 'files', 'index.html');
+  try {
+    if(redirected) await saveFile(`${messages.redirectedUrl}\n\n${redirectedUrl}`, 'files', 'redirectedurl.txt');
+  } catch (error: any) {
+    Sentry.captureException(error);
+  }
 
   await page.close();
   await browser.close();
   
   return {
-    elementExists,
+    elementExists1,
+    elementExists2,
     redirected,
+    redirectedUrl,
   };
 };
 
@@ -155,8 +164,8 @@ const isSubscribedAll = async () => {
 const checkForDetails = async (url: string) => {
   try {
     const check = await checkPage(url);
-    let detailMessage = getDetailsMessage(check.elementExists, check.redirected);
-    if(check.elementExists || check.redirected) {
+    let detailMessage = getDetailsMessage(check.elementExists1, check.elementExists2, check.redirected, check.redirectedUrl);
+    if(check.elementExists1 || check.elementExists2 || check.redirected) {
       detailMessage += `\n\n${messages.notification}`;
     }
     detailMessage += `\n\n${url}`;
@@ -170,7 +179,7 @@ const checkForDetails = async (url: string) => {
 const check = async (url: string) => {
   try {
     const check = await checkPage(url);
-    if(check.elementExists || check.redirected) {
+    if(check.elementExists1 || check.elementExists2 || check.redirected) {
       const ids = await getIds();
       sendTo(ids, `${messages.notification}\n\n${url}`);
     }
@@ -179,8 +188,8 @@ const check = async (url: string) => {
   }
 };
 
-const getDetailsMessage = (elementExists: boolean, redirected: boolean) => {
-  return `${messages.elementExists}${elementExists}\n${messages.redirected}${redirected}`;
+const getDetailsMessage = (elementExists1: boolean, elementExists2: boolean, redirected: boolean, redirectedUrl: string) => {
+  return `${messages.elementExists1}${elementExists1}\n${messages.elementExists2}${elementExists2}\n${messages.redirected}${redirected}\n${messages.redirectedUrl}${redirectedUrl || '[empty]'}`;
 };
 
 const sendTo = async (ids: number[], message: string) => {
