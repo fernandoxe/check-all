@@ -87,9 +87,12 @@ const checkPage = async (url: string) => {
   const elementExists1 = await page.locator(ELEMENT_SELECTOR_1).count() > 0;
   const elementExists2 = await page.locator(ELEMENT_SELECTOR_2).count() > 0;
   
-  await page.screenshot({ path: 'files/screenshot.jpg', fullPage: true, quality: 60, type: 'jpeg' });
   try {
+    await page.screenshot({ path: 'files/screenshot.jpg', fullPage: true, quality: 60, type: 'jpeg' });
     if(redirected) await saveFile(`${messages.redirectedUrl}\n\n${redirectedUrl}`, 'files', 'redirectedurl.txt');
+    if(elementExists1 || elementExists2 || redirected) {
+      await page.screenshot({ path: 'files/available.jpg', fullPage: true, quality: 60, type: 'jpeg' });
+    }
   } catch (error: any) {
     Sentry.captureException(error);
   }
