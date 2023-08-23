@@ -25,7 +25,7 @@ Sentry.init({
   // Set tracesSampleRate to 1.0 to capture 100%
   // of transactions for performance monitoring.
   // We recommend adjusting this value in production
-  tracesSampleRate: 1.0,
+  tracesSampleRate: 0.1,
 });
 
 app.use(Sentry.Handlers.requestHandler());
@@ -148,7 +148,21 @@ bot.onText(/\/unsubscribe/, async (msg) => {
 bot.onText(/\/screenshot/, async (msg) => {
   const chatId = msg.chat.id;
   try {
-    bot.sendPhoto(chatId, 'files/screenshot.jpg');
+    const filepath = 'files/screenshot.jpg';
+    if(!fs.existsSync(filepath)) throw new Error('Screenshot doesn\'t exist');
+    bot.sendPhoto(chatId, filepath);
+  } catch (error: any) {
+    Sentry.captureException(error);
+    bot.sendMessage(chatId, error.message);
+  }
+});
+
+bot.onText(/\/available/, async (msg) => {
+  const chatId = msg.chat.id;
+  try {
+    const filepath = 'files/available.jpg';
+    if(!fs.existsSync(filepath)) throw new Error('Available screenshot doesn\'t exist');
+    await bot.sendPhoto(chatId, filepath);
   } catch (error: any) {
     Sentry.captureException(error);
     bot.sendMessage(chatId, error.message);
